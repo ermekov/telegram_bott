@@ -1,21 +1,69 @@
 import telebot
 import webbrowser
 from telebot import types
+import sqlite3
 
 bot = telebot.TeleBot('7083395817:AAF7QjavKj8QHWdYoLiX6xUqpSmSsFTPD48')
-
+name = None
 @bot.message_handler(commands=['start','бастау','начать'])
 def main(message):
-    markup = types.ReplyKeyboardMarkup()
-    btn1 = types.KeyboardButton("Перейти на сайт")
-    markup.row(btn1)
-    btn2 = types.KeyboardButton("Удалить фото")
-    btn3 = types.KeyboardButton("Изменить текст")
-    markup.row(btn2, btn3)
-    file = open('./photo.jpg', 'rb')
-    bot.send_photo(message.chat.id, file, reply_markup=markup)
+    conn = sqlite3.connect("telegrambot.sql")
+    cur = conn.cursor()
+
+    cur.execute("CREATE TABLE IF NOT EXISTS users(id int auto_increment primary key, name varchar(50), password varchar(50))")
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    bot.send_message(message.chat.id, "Салем, сені қазір тіркейміз :) Атыңды жаз:")
+    bot.register_next_step_handler(message, user_name)
+
+    #markup = types.ReplyKeyboardMarkup()
+    # btn1 = types.KeyboardButton("Перейти на сайт")
+    # markup.row(btn1)
+    # btn2 = types.KeyboardButton("Удалить фото")
+    # btn3 = types.KeyboardButton("Изменить текст")
+    # markup.row(btn2, btn3)
+    # file = open('./photo.jpg', 'rb')
+    # bot.send_photo(message.chat.id, file, reply_markup=markup)
     #bot.send_message(message.chat.id, f"Салем :) {message.from_user.first_name}", reply_markup=markup)
-    bot.register_next_step_handler(message, on_click)
+    #bot.register_next_step_handler(message, on_click)
+
+def user_name(message):
+    global name
+    name = message.text.strip()
+    bot.send_message(message.chat.id, "Пароль жазыңыз:")
+    bot.register_next_step_handler(message, user_pass)
+
+def user_pass(message):
+    password = message.text.strip()
+
+    conn = sqlite3.connect("telegrambot.sql")
+    cur = conn.cursor()
+    cur.execute("INSERT INTO users(name, password) VALUES ('%s','%s')" % (name, password))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    markup = telebot.types.InlineKeyboardMarkup()
+    markup.add(telebot.types.InlineKeyboardButton("Тіркелушілер тізімі:", callback_data='users'))
+    bot.send_message(message.chat.id, "Сәтті теркелдіңіз!", reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: True)
+def callback(call):
+    conn = sqlite3.connect("telegrambot.sql")
+    cur = conn.cursor()
+
+    cur.execute("SELECT * FROM users")
+    users = cur.fetchall()
+    info =''
+    for el in users:
+        info+=f'Аты: {el[1]}, пароль: {el[2]}\n'
+
+    cur.close()
+    conn.close()
+
+    bot.send_message(call.message.chat.id, info)
 
 def on_click(message):
     if message.text == "Перейти на сайт":
